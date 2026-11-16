@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regimes de corrente na Bacia de Campos</title>
+<link rel="stylesheet" href="css/deck.css">
+<script>
+window.MathJax = {
+  tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\\]"]] },
+  svg: { fontCache: "global", mtextInheritFont: true },
+  options: { enableMenu: false },
+  startup: {
+    pageReady() {
+      return MathJax.startup.defaultPageReady().then(() => {
+        document.documentElement.dataset.mathjax = "pronto";
+      });
+    },
+  },
+};
+</script>
+<script defer src="vendor/mathjax/tex-svg-full.js"></script>
+<script defer src="js/deck.js"></script>
+<script defer src="js/graficos.js"></script>
+<script defer src="dados/numeros.js"></script>
+<script defer src="dados/mapa.js"></script>
+<script defer src="dados/filtro.js"></script>
+<script defer src="dados/vortice.js"></script>
+<script defer src="js/mapas.js"></script>
+<script defer src="dados/features.js"></script>
+<script defer src="js/vortice.js"></script>
+<script defer src="js/esquemas.js"></script>
+<script defer src="js/features.js"></script>
+<script defer src="js/filtro.js"></script>
+<script defer src="js/demo_gmm.js"></script>
+<script defer src="js/demo_hmm.js"></script>
+<script defer src="dados/framework.js"></script>
+<script defer src="js/framework.js"></script>
+<script defer src="dados/nomeacao.js"></script>
+<script defer src="js/nomeacao.js"></script>
+<script defer src="dados/pca.js"></script>
+<script defer src="js/pca.js"></script>
+<script defer src="dados/regimes.js"></script>
+<script defer src="js/regimes.js"></script>
+</head>
+<body>
+<div class="deck">
+<div class="palco">
+
+<section class="slide capa" id="capa">
+  <h1>Regimes de corrente<br>na Bacia de Campos</h1>
+  <p class="subtitulo">Detecção não supervisionada com GMM e HMM</p>
+  <div class="filete"></div>
+  <p class="autor">Hugo Carvalho</p>
+  <p class="data">Novembro de 2026</p>
+</section>
+
+<section class="slide capa divisor" id="t-dados">
+  <h1>Dados e motivação</h1>
+  <div class="filete"></div>
+</section>
+
+<section class="slide" id="lse24" data-secao="Dados">
+  <header><h2>Reanálise LSE24</h2></header>
+  <div class="corpo mapa">
+    <div class="coluna">
+      <dl class="fatos">
+        <dt>Produto</dt><dd>Reanálise oceânica</dd>
+        <dt>Grade</dt><dd>Mercator 1/24°</dd>
+        <dt>Espaçamento</dt><dd><span data-n="lse_dx"></span></dd>
+        <dt>Latitude</dt><dd><span data-n="lse_lat"></span></dd>
+        <dt>Longitude</dt><dd><span data-n="lse_lon"></span></dd>
+        <dt>Células</dt><dd><span data-n="lse_celulas"></span></dd>
+        <dt>Período</dt><dd>2006–2015</dd>
+        <dt>Amostragem</dt><dd>Horária, <span data-n="lse_n_horas"></span> instantes</dd>
+        <dt>Variáveis</dt><dd>\(u, v\) (m s⁻¹), \(\eta\) (m)</dd>
+      </dl>
+    </div>
+    <div class="coluna">
+      <div class="controles"><div class="botoes" id="mapa-niveis"></div></div>
+      <div class="grafico" id="mapa-lse"></div>
+      <p class="legenda">Isóbatas de <span data-n="isobatas"></span>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="recorte" data-secao="Dados">
+  <header><h2>Recorte</h2></header>
+  <div class="corpo mapa">
+    <div class="coluna">
+      <h3>Caixa extraída</h3>
+      <dl class="fatos">
+        <dt>Latitude</dt><dd><span data-n="cx_lat"></span></dd>
+        <dt>Longitude</dt><dd><span data-n="cx_lon"></span></dd>
+        <dt>Células</dt><dd><span data-n="cx_celulas"></span> = <span data-n="cx_total"></span></dd>
+        <dt>Oceano</dt><dd><span data-n="cx_oceano"></span> células</dd>
+      </dl>
+      <h3>Recorte do experimento</h3>
+      <dl class="fatos">
+        <dt>Longitude</dt><dd><span data-n="rc_lon"></span></dd>
+        <dt>Profundidade</dt><dd>\(\geq\) <span data-n="rc_prof"></span></dd>
+        <dt>Células</dt><dd><span data-n="rc_celulas"></span> (≈ <span data-n="rc_dx"></span>)</dd>
+        <dt>Dias</dt><dd><span data-n="rc_dias"></span></dd>
+      </dl>
+    </div>
+    <div class="coluna">
+      <div class="legenda-cores">
+        <span><i class="quadrado" style="background:var(--fora-analise)"></i>Oceano fora da análise</span>
+        <span><i class="quadrado" style="background:var(--terra)"></i>Terra</span>
+      </div>
+      <div class="grafico" id="mapa-recorte"></div>
+      <p class="legenda">Isóbatas de <span data-n="isobatas"></span>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="motivacao" data-secao="Motivação">
+  <header><h2>Regimes de circulação na Bacia de Campos</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <h3>Feições</h3>
+      <ul>
+        <li>Corrente do Brasil (CB)</li>
+        <li>Vórtice do Cabo de São Tomé (VCST)</li>
+      </ul>
+      <h3>Problema</h3>
+      <ul>
+        <li>Atribuir a cada célula e a cada dia um regime de circulação.</li>
+        <li>Sem rótulos: aprendizado não supervisionado.</li>
+        <li>Células vizinhas podem estar em regimes diferentes no mesmo dia.</li>
+      </ul>
+    </div>
+    <div class="coluna">
+      <div class="controles" id="vortice-controles"></div>
+      <div class="grafico" id="vortice-mapa"></div>
+      <p class="legenda">\(\eta' = \eta - \langle\eta\rangle_t\). Vórtice mapeado de <span data-n="vt_evento"></span> no apêndice de Fernando Mattos Santana Batista, <i>Variabilidade da Corrente do Brasil ao largo do Cabo de São Tomé</i> (dissertação, COPPE/UFRJ, 2025).</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="abordagem" data-secao="Motivação">
+  <header><h2>Abordagem</h2></header>
+  <div class="corpo">
+    <div class="coluna">
+      <p>A ideia daqui para frente é criar features que alimentam um algoritmo de aprendizado não supervisionado, para aprender os padrões de corrente.</p>
+      <div class="fluxo-ideia">
+        <div><h3>Campos</h3><p>\(u\), \(v\) e \(\eta\) diários</p></div>
+        <div><h3>Features</h3><p>descrevem cada célula em cada dia</p></div>
+        <div><h3>Aprendizado não supervisionado</h3><p>sem rótulos</p></div>
+        <div><h3>Padrões de corrente</h3><p>um estado por célula e dia</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="slide capa divisor" id="t-features">
+  <h1>Pré-processamento e<br>engenharia de features</h1>
+  <div class="filete"></div>
+</section>
+
+<section class="slide" id="filtragem" data-secao="Pré-processamento">
+  <header><h2>Filtragem temporal</h2></header>
+  <div class="corpo mapa">
+    <div class="coluna texto-denso">
+      <h3>Motivação</h3>
+      <p>A dissertação de Fernando Batista filtra as correntes medidas com um Butterworth passa-baixa de 7 dias (14 em algumas análises) e subamostra para diário, para remover maré e oscilação inercial. Aqui, o corte de 7 dias é aplicado à reanálise.</p>
+      <h3>Filtro aplicado</h3>
+      <p>Butterworth de ordem <span data-n="ft_ordem"></span>, período de corte \(1/\nu_c =\) <span data-n="ft_corte"></span>, ida e volta (fase nula). Uma amostra por dia, às 00 h.</p>
+      <div class="formula compacta">\[ |H(\nu)|^2 \approx \frac{1}{1 + (\nu/\nu_c)^{8}} \]</div>
+      <p>Remove a maré (M₂: <span data-n="ft_m2"></span>; K₁: <span data-n="ft_k1"></span>) e a oscilação inercial (\(f\): <span data-n="ft_inercial"></span> nesta célula).</p>
+    </div>
+    <div class="coluna">
+      <div class="controles" id="filtro-controles"></div>
+      <div class="legenda-cores">
+        <span><i style="background:var(--serie-1)"></i>Horário</span>
+        <span><i style="background:var(--serie-2)"></i>Diário filtrado</span>
+      </div>
+      <div class="grafico serie" id="filtro-serie"></div>
+      <div class="grafico espectro" id="filtro-espectro"></div>
+      <p class="legenda">Célula <span data-n="ft_ponto"></span>, prof. <span data-n="ft_prof"></span>. Espectros de Welch, 2006–2015. Lacunas interpoladas: <span data-n="faltantes_instantes"></span> instante (14/03/2007 00 h) e <span data-n="faltantes_v"></span> valores de \(v\) em <span data-n="faltantes_celulas"></span> células.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="referencial" data-secao="Features">
+  <header><h2>Referencial da isóbata</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <div class="formula compacta">\[ \hat{\mathbf{e}}_\perp = -\frac{\nabla H}{|\nabla H|}, \qquad \hat{\mathbf{e}}_\parallel \perp \hat{\mathbf{e}}_\perp \]</div>
+      <div class="formula compacta">\[ V_\parallel = \mathbf{V} \cdot \hat{\mathbf{e}}_\parallel, \qquad V_\perp = \mathbf{V} \cdot \hat{\mathbf{e}}_\perp \]</div>
+      <p class="legenda" style="margin-bottom: 26px">\(H\): profundidade suavizada. \(\hat{\mathbf{e}}_\perp\) aponta para águas rasas; \(\hat{\mathbf{e}}_\parallel\) para S–SO, sentido da CB.</p>
+      <ul>
+        <li>A CB corre ao longo do talude.</li>
+        <li>Longe do talude, \(\hat{\mathbf{e}}_\parallel\) perde relação com a corrente.</li>
+      </ul>
+    </div>
+    <div class="coluna">
+      <div class="controles" id="referencial-controles"></div>
+      <div class="grafico" id="referencial-mapa"></div>
+      <p class="legenda">Setas em uma de cada 4 células. Velocidade média de 2006–2015. Isóbatas de <span data-n="isobatas"></span>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="pontuais" data-secao="Features">
+  <header><h2>Features pontuais</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <h3>Intensidade</h3>
+      <div class="formula compacta">\[ |\mathbf{V}| = \sqrt{u^2 + v^2} \]</div>
+      <h3>Direção</h3>
+      <div class="formula compacta">\[ \cos\theta = \frac{V_\parallel}{|\mathbf{V}|}, \qquad \operatorname{sen}\theta = \frac{V_\perp}{|\mathbf{V}|} \]</div>
+      <ul>
+        <li>\(\cos\theta > 0\): a favor da CB; \(\cos\theta < 0\): contra a CB.</li>
+        <li>\(\operatorname{sen}\theta > 0\): para águas rasas; \(\operatorname{sen}\theta < 0\): para águas profundas.</li>
+      </ul>
+    </div>
+    <div class="coluna">
+      <div class="grafico" id="pontuais-diagrama"></div>
+      <p class="legenda">Velocidade \(\mathbf{V}\) no referencial \((\hat{\mathbf{e}}_\parallel, \hat{\mathbf{e}}_\perp)\). Arraste a ponta do vetor para alterar \(|\mathbf{V}|\) e \(\theta\).</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="vizinhanca" data-secao="Features">
+  <header><h2>Features de vizinhança</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <h3>Vorticidade relativa</h3>
+      <div class="formula compacta">\[ \frac{\zeta}{|f|}, \quad \zeta = \partial_x v - \partial_y u \]</div>
+      <h3>Okubo–Weiss</h3>
+      <div class="formula compacta">\[ \frac{W}{f^2}, \quad W = s_n^2 + s_s^2 - \zeta^2 \]</div>
+      <p class="legenda" style="margin-bottom: 18px">\(s_n = \partial_x u - \partial_y v\), \(s_s = \partial_x v + \partial_y u\). \(W < 0\): predomínio da rotação; \(W > 0\): predomínio da deformação. No hemisfério sul, \(\zeta < 0\) é rotação horária (ciclônica) e \(\zeta > 0\), anti-horária (anticiclônica).</p>
+      <h3>Parâmetro de Coriolis</h3>
+      <div class="formula compacta">\[ f = 2\,\Omega \operatorname{sen}\varphi \]</div>
+      <p class="legenda">\(\Omega =\) <span data-n="fx_omega"></span>: velocidade angular da Terra. \(\varphi\): latitude da célula.</p>
+    </div>
+    <div class="coluna">
+      <div class="grafico" id="vizinhanca-esquema"></div>
+      <p class="legenda">Janela de 90 km de lado, setas em escala. Valores calculados no centro, com \(f\) a 22°S; nesses campos lineares, são os mesmos em todo ponto.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="coerencia" data-secao="Features">
+  <header><h2>Coerência direcional</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <div class="formula">\[ C_{p,t} = \frac{1}{|\mathcal{N}_p|} \Biggl| \sum_{q \in \mathcal{N}_p} \frac{\mathbf{V}_{q,t}}{|\mathbf{V}_{q,t}|} \Biggr| \]</div>
+      <ul>
+        <li>\(\mathbf{V}_{q,t} = (u_{q,t}, v_{q,t})\): velocidade na célula \(q\) no dia \(t\).</li>
+        <li>\(\mathcal{N}_p\): células de oceano na janela de <span data-n="fx_coh"></span> (≈ <span data-n="fx_coh_km"></span>) centrada em \(p\).</li>
+        <li>\(C = 1\): escoamento paralelo; \(C \to 0\): direções dispersas.</li>
+        <li>Um valor por janela, atribuído à célula central \(p\), em destaque. Só a direção conta: a intensidade não entra.</li>
+      </ul>
+    </div>
+    <div class="coluna"><div class="grafico" id="coerencia-esquema"></div></div>
+  </div>
+</section>
+
+<section class="slide" id="geostroficas" data-secao="Features">
+  <header><h2>Features geostróficas</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <h3>Velocidade geostrófica</h3>
+      <div class="formula compacta">\[ u_{\mathrm{geo}} = -\frac{g}{f}\,\partial_y \eta, \quad v_{\mathrm{geo}} = \frac{g}{f}\,\partial_x \eta \]</div>
+      <p class="legenda" style="margin-bottom: 18px">\(g =\) <span data-n="fx_g"></span>: aceleração da gravidade.</p>
+      <h3>Features</h3>
+      <div class="formula compacta">\[ \frac{\zeta_{\mathrm{geo}}}{|f|}, \quad \frac{W_{\mathrm{geo}}}{f^2}, \quad |\mathbf{V}_{\mathrm{geo}}| = \sqrt{u_{\mathrm{geo}}^2 + v_{\mathrm{geo}}^2} \]</div>
+      <p class="legenda" style="margin-bottom: 18px">\(\zeta_{\mathrm{geo}}, W_{\mathrm{geo}}\): definições de \(\zeta, W\) aplicadas a \((u_{\mathrm{geo}}, v_{\mathrm{geo}})\).</p>
+      <p>Correlação com a versão em \(u, v\): \(\zeta\): <span data-n="fx_corr_zeta"></span>; \(W\): <span data-n="fx_corr_W"></span>; \(|\mathbf{V}|\): <span data-n="fx_corr_V"></span>.</p>
+    </div>
+    <div class="coluna">
+      <div class="controles quebra" id="geostroficas-controles"></div>
+      <div class="grafico" id="geostroficas-mapa"></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="escala" data-secao="Features">
+  <header><h2>Escala das features</h2></header>
+  <div class="corpo duas">
+    <div class="coluna texto-denso">
+      <div class="formula compacta">\[ X_{(p,t),\,c} = w_c \, \frac{\operatorname{win}(x_{p,t,c})}{\sigma_c} \]</div>
+      <h3>Winsorização</h3>
+      <p>Só em \(\zeta/|f|\), \(W/f^2\), \(\zeta_{\mathrm{geo}}/|f|\) e \(W_{\mathrm{geo}}/f^2\), que têm caudas pesadas. Valores abaixo do quantil de 1% ou acima do de 99% são substituídos por esses quantis, para que os extremos não dominem o ajuste.</p>
+      <h3>Padronização</h3>
+      <p>Cada coluna é dividida pelo seu desvio-padrão \(\sigma_c\), sem subtrair a média.</p>
+      <h3>Peso</h3>
+      <p>\(w_c = 2{,}5\) em \(\zeta/|f|\) e \(W/f^2\), para realçar a assinatura dos vórtices; \(w_c = 1\) nas demais.</p>
+    </div>
+    <div class="coluna">
+      <div class="controles" id="escala-controles"></div>
+      <div class="grafico" id="escala-histograma"></div>
+      <p class="legenda" id="escala-curtose"></p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="matriz" data-secao="Features">
+  <header><h2>Matriz de entrada</h2></header>
+  <div class="corpo matriz-corpo">
+    <div class="tabela"><table class="matriz" id="matriz-tabela"></table></div>
+    <div class="coluna">
+      <div class="formula">\[ \mathbf{X} \in \mathbb{R}^{N \times 9}, \qquad N = P\,T \]</div>
+      <p>\(P =\) <span data-n="fx_P"></span> células, \(T =\) <span data-n="fx_T"></span> dias, \(N =\) <span data-n="fx_N"></span> linhas.</p>
+    </div>
+    <div class="coluna">
+      <ul>
+        <li>Cada linha \((p, t)\) descreve a célula \(p\) no dia \(t\).</li>
+        <li>\(\sigma_c\) está nas unidades de cada feature.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="features-mapa" data-secao="Features">
+  <header><h2>Features no recorte</h2></header>
+  <div class="corpo mapa-linha">
+    <div class="controles" id="features-controles"></div>
+    <div class="coluna"><div class="grafico" id="features-mapa-grafico"></div></div>
+    <div class="coluna">
+      <h3>Linha de \(\mathbf{X}\)</h3>
+      <p class="legenda" id="features-cabecalho" style="margin: 0 0 14px"></p>
+      <div id="features-linhas"></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide capa divisor" id="t-gmm">
+  <h1>GMM</h1>
+  <p class="subtitulo">Gaussian Mixture Model</p>
+  <div class="filete"></div>
+</section>
+
+<section class="slide" id="gmm-geracao" data-secao="GMM">
+  <header><h2>Mistura de gaussianas</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <h3>Geração de um ponto</h3>
+      <ol>
+        <li>Sorteia-se a componente \(k\) com probabilidade \(\pi_k\).</li>
+        <li>Sorteia-se \(\mathbf{x} \sim \mathcal{N}(\boldsymbol{\mu}_k, \boldsymbol{\Sigma}_k)\).</li>
+      </ol>
+      <h3>Densidade</h3>
+      <div class="formula">\[ p(\mathbf{x}) = \sum_{k=1}^{K} \pi_k \, \mathcal{N}(\mathbf{x} \mid \boldsymbol{\mu}_k, \boldsymbol{\Sigma}_k) \]</div>
+      <p>\(\pi_k\): peso, com \(\sum_k \pi_k = 1\). \(\boldsymbol{\mu}_k\): média. \(\boldsymbol{\Sigma}_k\): covariância.</p>
+      <p>Na prática, observa-se \(\mathbf{x}\), e não \(k\).</p>
+    </div>
+    <div class="coluna">
+      <div class="controles leitura-abaixo" id="gmm-geracao-controles"></div>
+      <div class="grafico" id="gmm-geracao-grafico"></div>
+      <p class="legenda">Dado artificial, \(K = 3\). Cada elipse contém 90% da probabilidade da componente.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="gmm-resp" data-secao="GMM">
+  <header><h2>Responsabilidades</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <div class="formula">\[ \gamma_{ik} = \frac{\pi_k \, \mathcal{N}(\mathbf{x}_i \mid \boldsymbol{\mu}_k, \boldsymbol{\Sigma}_k)}{\sum_{j=1}^{K} \pi_j \, \mathcal{N}(\mathbf{x}_i \mid \boldsymbol{\mu}_j, \boldsymbol{\Sigma}_j)} \]</div>
+      <ul>
+        <li>\(\gamma_{ik}\): probabilidade de \(\mathbf{x}_i\) ter vindo da componente \(k\).</li>
+        <li>\(\sum_k \gamma_{ik} = 1\): cada ponto se divide entre as componentes.</li>
+        <li>Rótulo do ponto: \(\arg\max_k \gamma_{ik}\).</li>
+      </ul>
+    </div>
+    <div class="coluna">
+      <div class="grafico" id="grafico-mistura"></div>
+      <p class="legenda">Parâmetros conhecidos. Cor do ponto: cores das componentes, ponderadas por \(\gamma_{ik}\).</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="gmm-em" data-secao="GMM">
+  <header><h2>Estimação dos parâmetros</h2></header>
+  <div class="corpo duas">
+    <div class="coluna texto-denso">
+      <h3>Algoritmo EM</h3>
+      <p>Parte de \(\pi_k, \boldsymbol{\mu}_k, \boldsymbol{\Sigma}_k\) iniciais e alterna:</p>
+      <h3>Passo E</h3>
+      <p>Calcula \(\gamma_{ik}\) com os parâmetros atuais.</p>
+      <h3>Passo M</h3>
+      <div class="formula compacta">\[ N_k = \sum_i \gamma_{ik}, \qquad \pi_k = \frac{N_k}{n} \]</div>
+      <div class="formula compacta">\[ \boldsymbol{\mu}_k = \frac{1}{N_k} \sum_i \gamma_{ik} \, \mathbf{x}_i \]</div>
+      <div class="formula compacta">\[ \boldsymbol{\Sigma}_k = \frac{1}{N_k} \sum_i \gamma_{ik} \, (\mathbf{x}_i - \boldsymbol{\mu}_k)(\mathbf{x}_i - \boldsymbol{\mu}_k)^\top \]</div>
+      <p>\(\ell = \sum_i \log p(\mathbf{x}_i)\) não decresce; o limite é um ótimo local, que depende da inicialização.</p>
+    </div>
+    <div class="coluna">
+      <div class="controles leitura-abaixo" id="gmm-em-controles"></div>
+      <div class="grafico serie" id="gmm-em-grafico"></div>
+      <div class="grafico curva" id="gmm-em-curva"></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide capa divisor" id="t-hmm">
+  <h1>HMM</h1>
+  <p class="subtitulo">Hidden Markov Model</p>
+  <div class="filete"></div>
+</section>
+
+<section class="slide" id="hmm-modelo" data-secao="HMM">
+  <header><h2>Modelo oculto de Markov</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <ul>
+        <li>Agora as observações \(x_t\) têm ordem temporal, ao contrário do GMM; o objetivo é modelar essa dependência.</li>
+        <li>O estado oculto \(z_t\) segue uma cadeia de Markov: depende apenas de \(z_{t-1}\).</li>
+        <li>A observação \(x_t\) é gerada a partir de \(z_t\).</li>
+      </ul>
+      <div class="grafico" id="hmm-grafo"></div>
+    </div>
+    <div class="coluna">
+      <div class="controles" id="hmm-modelo-controles"></div>
+      <div class="grafico" id="hmm-modelo-serie"></div>
+      <p class="legenda">Exemplo: máquina com três estados ocultos; observa-se só a vibração.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="hmm-param" data-secao="HMM">
+  <header><h2>Parâmetros do HMM</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <h3>Matriz de transição \(\mathbf{A}\)</h3>
+      <div class="formula compacta">\[ a_{ij} = P(z_t = j \mid z_{t-1} = i) \]</div>
+      <h3>Distribuição inicial \(\boldsymbol{\rho}\)</h3>
+      <div class="formula compacta">\[ \rho_k = P(z_1 = k) \]</div>
+      <h3>Emissão</h3>
+      <div class="formula compacta">\[ (x_t \mid z_t = k) \sim \mathcal{N}(\mu_k, \sigma_k^2) \]</div>
+      <div class="formula compacta">\[ b_k(x) = \mathcal{N}(x \mid \mu_k, \sigma_k^2) \]</div>
+      <p class="legenda">\(b_k(x)\): densidade de \(x\) quando o estado é \(k\).</p>
+    </div>
+    <div class="coluna">
+      <div class="grafico" id="hmm-param-grafico"></div>
+      <p class="legenda">Linha da matriz: estado em \(t-1\); coluna: estado em \(t\).</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="hmm-viterbi" data-secao="HMM">
+  <header><h2>Algoritmo de Viterbi</h2></header>
+  <div class="corpo viterbi">
+    <div class="coluna texto-denso">
+      <p>\(\delta_t(k)\): probabilidade do melhor caminho que termina no estado \(k\) no instante \(t\).</p>
+      <h3>Início</h3>
+      <div class="formula compacta">\[ \delta_1(k) = \rho_k \, b_k(x_1) \]</div>
+      <h3>Avanço</h3>
+      <div class="formula compacta">\[ \delta_t(k) = \underbrace{b_k(x_t)}_{\text{observação em } k} \]</div>
+      <div class="formula compacta">\[ \times \Bigl[ \max_j \, \underbrace{\delta_{t-1}(j)}_{\text{melhor caminho até } j} \, \underbrace{a_{jk}}_{\text{transição}} \Bigr] \]</div>
+      <h3>Retorno</h3>
+      <p>Cada estado guarda o \(j\) que realiza o máximo. Do estado final de maior \(\delta\), percorre-se o caminho de volta.</p>
+    </div>
+    <div class="coluna">
+      <div class="controles leitura-abaixo" id="hmm-viterbi-controles"></div>
+      <div class="grafico" id="hmm-viterbi-grafico"></div>
+      <p class="legenda">\(\propto\): normalizado em cada instante. Passe o ponteiro sobre um nó para ver o cálculo.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="hmm-estados" data-secao="HMM">
+  <header><h2>GMM e Viterbi na mesma série</h2></header>
+  <div class="corpo mapa-dupla">
+    <div class="coluna">
+      <h3>GMM: sem ordem temporal</h3>
+      <div class="grafico" id="hmm-gmm-grafico"></div>
+      <p class="legenda">Cada observação recebe a componente de maior responsabilidade. Fundo: regiões de decisão. Ponto preto: classificação incorreta.</p>
+    </div>
+    <div class="coluna">
+      <div class="controles" id="hmm-estados-controles"></div>
+      <div class="grafico" id="hmm-estados-grafico"></div>
+      <p class="legenda">À direita, fração de acertos. Slider: \(a_{ii}\) comum aos estados; o restante de cada linha mantém suas proporções.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="hmm-contagem" data-secao="HMM">
+  <header><h2>Estimação com estados conhecidos</h2></header>
+  <div class="corpo duas">
+    <div class="coluna">
+      <p>Se \(z_t\) fosse observado, bastaria contar.</p>
+      <h3>Transição</h3>
+      <div class="formula compacta">\[ \hat{a}_{ij} = \frac{n_{ij}}{\sum_j n_{ij}} \]</div>
+      <p class="legenda" style="margin-bottom: 20px">\(n_{ij}\): número de transições de \(i\) para \(j\).</p>
+      <h3>Emissão</h3>
+      <p>\(\hat{\mu}_k\) e \(\hat{\sigma}_k^2\): média e variância das observações em que \(z_t = k\).</p>
+      <div class="grafico" id="hmm-contagem-emissoes"></div>
+      <p class="legenda">Tracejado: emissões verdadeiras.</p>
+    </div>
+    <div class="coluna">
+      <div class="controles" id="hmm-contagem-controles"></div>
+      <div class="grafico" id="hmm-contagem-grafico"></div>
+      <p class="legenda">Slider: número de instantes usados.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="hmm-fb" data-secao="HMM">
+  <header><h2>Forward–backward</h2></header>
+  <div class="corpo fb">
+    <div class="coluna texto-denso">
+      <h3>Forward: do início até \(t\)</h3>
+      <div class="formula compacta">\[ \begin{aligned} \alpha_t(k) &= P(x_{1:t}, z_t = k) \\ &= b_k(x_t) \sum\nolimits_j \alpha_{t-1}(j)\, a_{jk} \end{aligned} \]</div>
+      <h3>Backward: do fim até \(t+1\)</h3>
+      <div class="formula compacta">\[ \begin{aligned} \beta_t(k) &= P(x_{t+1:T} \mid z_t = k) \\ &= \sum\nolimits_j a_{kj}\, b_j(x_{t+1})\, \beta_{t+1}(j) \end{aligned} \]</div>
+      <h3>Combinação</h3>
+      <div class="formula compacta">\[ \begin{aligned} \gamma_t(k) &= P(z_t = k \mid x_{1:T}) \\ &\propto \alpha_t(k)\, \beta_t(k) \end{aligned} \]</div>
+      <p>Responsabilidade do GMM, com a série inteira.</p>
+      <div class="formula compacta">\[ \begin{aligned} \xi_t(i,j) &= P(z_t = i, z_{t+1} = j \mid x_{1:T}) \\ &\propto \alpha_t(i)\, a_{ij}\, b_j(x_{t+1})\, \beta_{t+1}(j) \end{aligned} \]</div>
+      <p>Transição \(i \to j\) em \(t\); sem análogo no GMM.</p>
+    </div>
+    <div class="coluna">
+      <div class="controles leitura-abaixo" id="hmm-fb-controles"></div>
+      <div class="grafico" id="hmm-fb-grafico"></div>
+      <p class="legenda">Início: \(\alpha_1(k) = \rho_k b_k(x_1)\) e \(\beta_T(k) = 1\). \(\propto\): normalizado em cada instante. O forward é o avanço do Viterbi, com soma no lugar do máximo.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="hmm-bw" data-secao="HMM">
+  <header><h2>Algoritmo de Baum–Welch</h2></header>
+  <div class="corpo duas">
+    <div class="coluna texto-denso">
+      <p>Estima a matriz de transição \(\mathbf{A}\), a distribuição inicial \(\boldsymbol{\rho}\) e as probabilidades de emissão (\(\mu_k\), \(\sigma_k^2\)), só a partir das observações.</p>
+      <p>As contagens do caso com estados conhecidos viram contagens esperadas, com \(\gamma_t\) e \(\xi_t\):</p>
+      <div class="formula compacta">\[ \hat{a}_{ij} = \frac{\sum_{t \lt T} \xi_t(i,j)}{\sum_{t \lt T} \gamma_t(i)}, \qquad \hat{\rho}_k = \gamma_1(k) \]</div>
+      <div class="formula compacta">\[ \hat{\mu}_k = \frac{\sum_t \gamma_t(k)\, x_t}{\sum_t \gamma_t(k)} \]</div>
+      <div class="formula compacta">\[ \hat{\sigma}_k^2 = \frac{\sum_t \gamma_t(k)\, (x_t - \hat{\mu}_k)^2}{\sum_t \gamma_t(k)} \]</div>
+      <p>Alternam-se o forward–backward e esse recálculo, até a verossimilhança estabilizar.</p>
+    </div>
+    <div class="coluna">
+      <div class="controles leitura-abaixo" id="hmm-bw-controles"></div>
+      <div class="grafico hmm-topo" id="hmm-bw-topo"></div>
+      <div class="grafico curva" id="hmm-bw-curva"></div>
+      <p class="legenda">O Viterbi roda uma vez, depois do Baum–Welch, com os parâmetros estimados; os dois não se alternam.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="fw-maquinas" data-secao="HMM">
+  <header><h2>Etapas com várias máquinas</h2></header>
+  <div class="corpo">
+    <div class="coluna">
+      <div class="controles leitura-abaixo" id="fw-maquinas-controles"></div>
+      <div class="grafico" id="fw-maquinas-grafico"></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide capa divisor" id="t-aplicacao">
+  <h1>Aplicação nos dados</h1>
+  <div class="filete"></div>
+</section>
+
+<section class="slide" id="fw-modelo" data-secao="Aplicação">
+  <header><h2>Aplicação ao dado real</h2></header>
+  <div class="corpo">
+    <div class="coluna">
+      <table class="matriz quadro">
+        <thead><tr><th></th><th>Exemplo artificial</th><th>Bacia de Campos</th></tr></thead>
+        <tbody>
+          <tr><td>Observação</td><td>\(x_t \in \mathbb{R}\)</td><td>\(\mathbf{x}_{p,t} \in \mathbb{R}^{9}\): features da célula \(p\) no dia \(t\)</td></tr>
+          <tr><td>Estado oculto<small>regime de circulação</small></td><td>\(z_t \in \{\text{P}, \text{N}, \text{S}\}\)</td><td><span data-n="fw_K_max" data-tex="z_{p,t} \in \{0, \dots, #\}"></span>; \(K =\) <span data-n="fw_K"></span> é hiperparâmetro do algoritmo</td></tr>
+          <tr><td>Emissão<small>probabilidade de observar as features dado o estado</small></td><td>\(\mathcal{N}(\mu_k, \sigma_k^2)\)</td><td>\(P(\mathbf{x}_{p,t} \mid z_{p,t} = k) = \mathcal{N}(\mathbf{x}_{p,t} \mid \boldsymbol{\mu}_k, \boldsymbol{\Sigma}_k)\)<br>\(\boldsymbol{\mu}_k \in \mathbb{R}^{9}\), \(\boldsymbol{\Sigma}_k \in \mathbb{R}^{9 \times 9}\) cheia</td></tr>
+          <tr><td>Transição<small>probabilidade de passar de um estado a outro em um dia</small></td><td>\(\mathbf{A} \in \mathbb{R}^{3 \times 3}\)</td><td>\(a_{ij} = P(z_{p,t+1} = j \mid z_{p,t} = i)\)<br>\(\mathbf{A} \in \mathbb{R}^{K \times K}\), única para todas as células</td></tr>
+          <tr><td>Sequências</td><td>1 série</td><td><span data-n="fx_P"></span> células, cada uma com \(T =\) <span data-n="fx_T"></span> dias</td></tr>
+        </tbody>
+      </table>
+      <ul class="abaixo-quadro">
+        <li>As células são tratadas como sequências independentes.</li>
+        <li>A informação espacial entra pelas features de vizinhança, não pelo modelo.</li>
+        <li>Emissões e \(\mathbf{A}\) são as mesmas em todas as células: cada estado \(k\) significa o mesmo em qualquer ponto.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="fw-etapas" data-secao="Aplicação">
+  <header><h2>Etapas da estimação</h2></header>
+  <div class="corpo fluxo">
+    <div class="coluna">
+      <h3>1. GMM</h3>
+      <div class="grafico" id="fw-esquema-gmm"></div>
+      <p class="lead">Aloca cada par \((p,t)\) num estado, de forma provisória e sem continuidade temporal.</p>
+      <dl class="fatos">
+        <dt>Dados</dt><dd><span data-n="fw_gmm_n"></span> linhas de \(\mathbf{X}\) sorteadas (<span data-n="fw_gmm_pct"></span>)</dd>
+        <dt>Modelo</dt><dd>\(K =\) <span data-n="fw_K"></span>, \(\boldsymbol{\Sigma}_k\) cheia, <span data-n="fw_n_init"></span> inicializações</dd>
+        <dt>Estima</dt><dd>\(\pi_k\), \(\boldsymbol{\mu}_k\), \(\boldsymbol{\Sigma}_k\)</dd>
+      </dl>
+    </div>
+    <div class="coluna">
+      <h3>2. Baum–Welch</h3>
+      <div class="grafico" id="fw-esquema-bw"></div>
+      <p class="lead">Estima a matriz de transição \(\mathbf{A}\) e a probabilidade inicial \(\rho_k\) de cada estado.</p>
+      <dl class="fatos">
+        <dt>Dados</dt><dd>séries de <span data-n="fw_bw_n"></span> células sorteadas (<span data-n="fw_bw_pct"></span>), como réplicas independentes</dd>
+        <dt>Início</dt><dd>\(\rho_k = \pi_k\), \(a_{ii} =\) <span data-n="fw_a0"></span></dd>
+        <dt>Fixas</dt><dd>emissões do GMM, para preservar a física dos estados</dd>
+      </dl>
+    </div>
+    <div class="coluna">
+      <h3>3. Viterbi</h3>
+      <div class="grafico" id="fw-esquema-viterbi"></div>
+      <p class="lead">Escolhe, em cada célula, a sequência de estados mais provável.</p>
+      <dl class="fatos">
+        <dt>Dados</dt><dd>as <span data-n="fx_P"></span> células, consideradas independentes</dd>
+        <dt>Usa</dt><dd>os parâmetros das etapas 1 e 2</dd>
+        <dt>Resulta</dt><dd>\(z_{p,t}\): um estado por célula e dia (<span data-n="fx_N"></span> rótulos)</dd>
+      </dl>
+    </div>
+  </div>
+  <p class="legenda nota-fluxo">Com emissões reestimadas, em 2 de 3 configurações testadas nos 26 pontos, o estado de rotação perdeu a assinatura rotacional.</p>
+</section>
+
+<section class="slide" id="fw-celula" data-secao="Aplicação">
+  <header><h2>GMM e HMM por célula</h2></header>
+  <div class="corpo celula-serie">
+    <div class="coluna">
+      <h3>Dias com estados diferentes (%)</h3>
+      <div class="grafico" id="fw-mapa"></div>
+      <p class="legenda">Percentual dos dias de 2006 a 2015 em que GMM e HMM dão estados diferentes em cada célula. Média no recorte: <span data-n="fw_disc"></span>. Clique numa célula.</p>
+    </div>
+    <div class="coluna">
+      <h3>Estados na célula selecionada</h3>
+      <div class="controles leitura-abaixo"><span class="data-atual" id="fw-leitura"></span></div>
+      <div class="grafico" id="fw-serie"></div>
+      <p class="legenda">Trocas de estado por ano, média no recorte: <span data-n="fw_trocas_gmm"></span> no GMM e <span data-n="fw_trocas_hmm"></span> no HMM. \(\hat{a}_{ii}\) de <span data-n="fw_aii_min"></span> a <span data-n="fw_aii_max"></span>: permanência média de <span data-n="fw_perm_min"></span> a <span data-n="fw_perm_max"></span> dias.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide capa divisor" id="t-resultados">
+  <h1>Resultados</h1>
+  <div class="filete"></div>
+</section>
+
+<section class="slide" id="nome-regras" data-secao="Nomeação">
+  <header><h2>Regras de nomeação</h2></header>
+  <div class="corpo">
+    <div class="coluna">
+      <p>Cada estado recebe um nome a partir das médias físicas dos pares \((p,t)\) atribuídos a ele. As regras são testadas em sequência, de 1 a 5: vale a primeira satisfeita, e as seguintes não são avaliadas.</p>
+      <table class="matriz quadro regras">
+        <thead><tr><th></th><th>Regime</th><th>Condição</th><th>Interpretação</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>rotacao</code></td><td>\(\mathrm{frac}(W \lt 0) \gt\) <span data-n="nm_wfrac"></span> e \(\overline{W} \lt 0\)</td><td>a rotação domina a deformação</td></tr>
+          <tr><td>2</td><td><code>fraco_desorganizado</code></td><td>\(\overline{|\mathbf{V}|}\) abaixo do percentil <span data-n="nm_pct"></span> de \(|\mathbf{V}|\)</td><td>corrente fraca</td></tr>
+          <tr><td>3</td><td><code>inversao</code></td><td>\(\overline{u}_\parallel \le -\)<span data-n="nm_along"></span> m s⁻¹</td><td>corrente no sentido oposto ao da CB</td></tr>
+          <tr><td>4</td><td><code>CB_dominante</code></td><td>\(\overline{u}_\parallel \ge\) <span data-n="nm_along"></span> m s⁻¹ e \(\overline{C} \ge\) <span data-n="nm_coh"></span></td><td>corrente no sentido da CB e coerente</td></tr>
+          <tr><td>5</td><td><code>fraco_desorganizado</code></td><td>demais casos</td><td>sentido indefinido ou incoerente</td></tr>
+        </tbody>
+      </table>
+      <p class="legenda">\(\overline{\,\cdot\,}\): média sobre os pares do estado. \(\mathrm{frac}(W \lt 0)\): fração dos pares com \(W \lt 0\). \(u_\parallel = |\mathbf{V}| \cos\theta\), positiva no sentido da CB. Percentil <span data-n="nm_pct"></span> de \(|\mathbf{V}|\) sobre todos os pares: <span data-n="nm_p25"></span> m s⁻¹. Estados com o mesmo nome são sub-estados do regime.</p>
+      <ul class="abaixo-quadro obs-nomeacao">
+        <li>Longe do talude, o rótulo <code>CB_dominante</code> faz pouco sentido. A nomenclatura vem de experimentos anteriores, com um conjunto de dados menor, e será revista.</li>
+        <li>Os limiares são uma tentativa inicial de alocar os estados em regimes e podem ser revistos.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="nome-estados" data-secao="Nomeação">
+  <header><h2>Nomes dos estados</h2></header>
+  <div class="corpo">
+    <div class="coluna">
+      <div class="controles" id="nome-controles"></div>
+      <table class="matriz estados">
+        <thead><tr><th>Estado</th><th>Pares (%)</th><th>\(\overline{|\mathbf{V}|}\) (m s⁻¹)</th><th>\(\overline{u}_\parallel\) (m s⁻¹)</th><th>\(W \lt 0\) (%)</th><th>\(\overline{W}\) (10⁻¹¹ s⁻²)</th><th>\(\overline{C}\)</th><th>Regime</th></tr></thead>
+        <tbody id="nome-tabela"></tbody>
+      </table>
+      <div class="regra-caminho" id="nome-caminho"></div>
+      <p class="legenda">Nenhum estado satisfaz a regra de <code>inversao</code>. Ocupação após o Viterbi: <code>CB_dominante</code> <span data-n="nm_oc_cb"></span>, <code>fraco_desorganizado</code> <span data-n="nm_oc_fraco"></span>, <code>rotacao</code> <span data-n="nm_oc_rot"></span>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="regimes-mapas" data-secao="Resultados">
+  <header><h2>Onde ocorre cada regime</h2></header>
+  <div class="corpo">
+    <div class="coluna">
+      <div class="tres-mapas">
+        <div class="coluna"><h3><code>CB_dominante</code>: <span data-n="nm_oc_cb"></span></h3><div class="grafico" id="regimes-mapa-0"></div></div>
+        <div class="coluna"><h3><code>fraco_desorganizado</code>: <span data-n="nm_oc_fraco"></span></h3><div class="grafico" id="regimes-mapa-1"></div></div>
+        <div class="coluna"><h3><code>rotacao</code>: <span data-n="nm_oc_rot"></span></h3><div class="grafico" id="regimes-mapa-2"></div></div>
+      </div>
+      <div class="grafico barra-h" id="regimes-barra"></div>
+      <p class="legenda">Percentual dos dias de 2006 a 2015 em que cada célula está no regime, após o Viterbi; nos títulos, a média no recorte. A <code>rotacao</code> chega a <span data-n="rg_rot_max"></span> em <span data-n="rg_rot_lugar"></span>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="regimes-A" data-secao="Resultados">
+  <header><h2>Matriz de transição estimada</h2></header>
+  <div class="corpo matriz-a">
+    <div class="coluna"><table class="matriz transicao" id="regimes-tabela"></table></div>
+    <div class="coluna texto-denso">
+      <ul>
+        <li>Linha: estado no dia \(t\); coluna: estado no dia \(t+1\). Última coluna: permanência média \(1/(1-\hat{a}_{ii})\).</li>
+        <li>Diagonal de <span data-n="fw_aii_min"></span> a <span data-n="fw_aii_max"></span>: cada estado dura em média de <span data-n="fw_perm_min"></span> a <span data-n="fw_perm_max"></span> dias.</li>
+        <li>Maior probabilidade fora da diagonal: <span data-n="rg_a_max"></span>.</li>
+        <li>Estado <span data-n="rg_rot_k"></span> (<code>rotacao</code>): chega-se a ele sobretudo a partir de <span data-n="rg_entra"></span>; sai-se sobretudo para <span data-n="rg_sai"></span>.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="pca-metodo" data-secao="EDA do GMM">
+  <header><h2>PCA de \(\mathbf{X}\)</h2></header>
+  <div class="corpo duas">
+    <div class="coluna texto-denso">
+      <p>O GMM é ajustado em \(\mathbb{R}^{9}\); a PCA serve só para visualizar.</p>
+      <p>A projeção linear de uma gaussiana é gaussiana, então cada estado vira uma elipse no plano de dois componentes.</p>
+      <h3>Leitura dos componentes</h3>
+      <ul>
+        <li>PC1 e PC2: \(\zeta/|f|\) e \(W/f^2\), que concentram a variância por causa do peso em \(\mathbf{X}\).</li>
+        <li>PC3: intensidade e direção da corrente (\(|\mathbf{V}|\), \(|\mathbf{V}_{\text{geo}}|\), \(\cos\theta\), \(C\)).</li>
+        <li>PC4: \(\text{sen}\,\theta\).</li>
+      </ul>
+    </div>
+    <div class="coluna">
+      <h3>Cargas dos componentes</h3>
+      <table class="matriz cargas" id="pca-cargas"><thead><tr><th>Feature</th><th>PC1</th><th>PC2</th><th>PC3</th><th>PC4</th></tr></thead></table>
+      <p class="legenda">PC1 e PC2 somam <span data-n="pca_12"></span> da variância; PC1 a PC3, <span data-n="pca_123"></span>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="pca-gaussianas" data-secao="EDA do GMM">
+  <header><h2>Gaussianas projetadas</h2></header>
+  <div class="corpo pca">
+    <div class="coluna">
+      <div class="grafico" id="pca-grafico"></div>
+    </div>
+    <div class="coluna">
+      <div class="estados-lista" id="pca-estados"></div>
+      <p class="legenda">Elipses: 90% da probabilidade de cada estado no plano. Fundo: projeção da densidade de \(\mathbf{X}\) em PC1 e PC2, em escala logarítmica.</p>
+      <p class="aviso-2d">Sobreposição no plano não implica sobreposição em \(\mathbb{R}^{9}\).</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="dashboard" data-secao="Dashboard">
+  <header><h2>Dashboard</h2></header>
+  <div class="corpo">
+    <div class="coluna">
+      <p>Os campos e os estados do HMM podem ser percorridos dia a dia no dashboard da grade.</p>
+      <ul class="casos">
+        <li><b>14/12/2006</b>: vórtice mostrado na motivação.</li>
+        <li><b>13/02/2007</b>: vórtice ao norte; surge um vórtice no Cabo de São Tomé, que se desprende para o norte.</li>
+        <li><b>30/09/2007</b>: vórtice anticiclônico não capturado.</li>
+        <li><b>23/09/2008</b>: falso positivo de vórtice perto da costa.</li>
+        <li><b>11/06/2011</b>: grande vórtice ciclônico ao norte.</li>
+        <li><b>16/02/2013</b>: dois vórtices.</li>
+      </ul>
+      <p><a class="abrir" target="_blank" href="../dashboard_grade/campos_grade.html#tema=claro">Abrir o dashboard</a></p>    </div>
+  </div>
+</section>
+
+<section class="slide capa divisor" id="t-limitacoes">
+  <h1>Limitações</h1>
+  <div class="filete"></div>
+</section>
+
+<section class="slide" id="limitacoes" data-secao="Limitações">
+  <header><h2>Limitações</h2></header>
+  <div class="corpo duas">
+    <div class="coluna texto-denso">
+      <h3>Modelo</h3>
+      <ul>
+        <li>Assume gaussianidade, mas as features claramente não são gaussianas.</li>
+        <li>Mesmas emissões e transições em todos os pontos: plataforma, talude e oceano profundo.</li>
+        <li>\(\mathbf{A}\) e \(\boldsymbol{\rho}\) estimadas em <span data-n="fw_bw_n"></span> células sorteadas, não em todas.</li>
+        <li>Células tratadas como independentes, embora haja clara dependência espacial.</li>
+      </ul>
+      <h3>Estabilidade</h3>
+      <ul>
+        <li>A <code>rotacao</code> é um ótimo local: depende da inicialização e do peso <span data-n="lim_peso"></span>.</li>
+        <li>Estabilidade entre sementes parcialmente testada.</li>
+      </ul>
+    </div>
+    <div class="coluna texto-denso">
+      <h3>Features e nomeação</h3>
+      <ul>
+        <li>O referencial da isóbata só faz sentido no talude; longe dele, outro referencial deve ser adotado.</li>
+        <li><code>CB_dominante</code> faz pouco sentido longe do talude: nomenclatura e limiares a rever.</li>
+        <li>A <code>rotacao</code> só captura vórtices ciclônicos; os anticiclones caem em outros estados.</li>
+        <li>Features geostróficas muito correlacionadas com as de \(u, v\) (\(\zeta\): <span data-n="fx_corr_zeta"></span>; \(W\): <span data-n="fx_corr_W"></span>; \(|\mathbf{V}|\): <span data-n="fx_corr_V"></span>).</li>
+        <li>Mais features (ex.: energia em bandas de wavelet): mais parâmetros, sobretudo em \(\boldsymbol{\Sigma}_k\), mas há dados de sobra.</li>
+      </ul>
+      <h3>Trabalhos futuros</h3>
+      <ul>
+        <li>Resolver as limitações acima.</li>
+        <li>Comparar a <code>rotacao</code> com os eventos de VCST da dissertação de Fernando Batista.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide" id="extensao" data-secao="Limitações">
+  <header><h2>Extensão do recorte</h2></header>
+  <div class="corpo mapa">
+    <div class="coluna texto-denso">
+      <h3>Recorte</h3>
+      <ul>
+        <li>Recorte atual: <span data-n="rc_lon"></span>.</li>
+        <li>Estender até 30°O permite ver sinais chegando que podem causar vórtices, hipótese da dissertação de Fernando Batista.</li>
+        <li>A caixa extraída já chega a 30°O (<span data-n="cx_oceano"></span> células de oceano, contra <span data-n="rc_celulas"></span>), mas termina em 23°S e corta o VCST no sul do recorte.</li>
+      </ul>
+      <h3>Custo computacional</h3>
+      <ul>
+        <li>Um recorte maior exige mais processamento: preparo dos códigos para rodar no LOF/COPPE, no Santos Dumont ou no cluster da Petrobras.</li>
+      </ul>
+    </div>
+    <div class="coluna">
+      <div class="grafico" id="extensao-mapa"></div>
+    </div>
+  </div>
+</section>
+
+<section class="slide capa divisor" id="t-conclusao">
+  <h1>Conclusão</h1>
+  <div class="filete"></div>
+</section>
+
+<section class="slide" id="resumo" data-secao="Conclusão">
+  <header><h2>Resumo</h2></header>
+  <div class="corpo">
+    <div class="coluna">
+      <ul>
+        <li>Reanálise LSE24 no recorte: <span data-n="fx_P"></span> células \(\times\) <span data-n="fx_T"></span> dias, com <span data-n="fx_colunas"></span> features por célula e dia.</li>
+        <li>O GMM agrupa os pares (célula, dia) em <span data-n="fw_K"></span> estados; o HMM acrescenta continuidade temporal.</li>
+        <li>Regras físicas nomeiam os estados. Ocupação: <code>CB_dominante</code> <span data-n="nm_oc_cb"></span>, <code>fraco_desorganizado</code> <span data-n="nm_oc_fraco"></span> e <code>rotacao</code> <span data-n="nm_oc_rot"></span>.</li>
+        <li>Nomenclatura, limiares e estabilidade da solução ainda serão revistos.</li>
+        <li>Próximos passos:
+          <ul>
+            <li>estender o recorte até 30°O;</li>
+            <li>planejar experimentos para resolver as limitações apresentadas;</li>
+            <li>preparar os códigos para rodá-los no LOF/COPPE, no Santos Dumont ou no cluster da Petrobras.</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="slide capa" id="obrigado">
+  <h1>Obrigado</h1>
+  <div class="filete"></div>
+  <p class="autor">Hugo Carvalho</p>
+  <p class="data">hugo@dme.ufrj.br</p>
+</section>
+
+</div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const porId = id => document.getElementById(id);
+  const CAIXAS = [
+    { chave: "extraida", rotulo: "Caixa extraída", ancora: "end", cor: "var(--tinta)" },
+    { chave: "recorte", rotulo: "Recorte", ancora: "start", cor: "var(--serie-2)" },
+  ];
+  Deck.registrar("lse24", { iniciar() {
+    const mapa = Mapas.criar(porId("mapa-lse"), { L: 970, H: 660, inicial: "completa", caixas: CAIXAS });
+    Mapas.botoes(porId("mapa-niveis"), [["completa", "Grade completa"], ["extraida", "Caixa extraída"], ["recorte", "Recorte"]], "completa", c => mapa.ir(c));
+  } });
+  Deck.registrar("recorte", { iniciar() {
+    Mapas.criar(porId("mapa-recorte"), { L: 970, H: 680, inicial: "recorte", comMascara: true });
+  } });
+  Deck.registrar("filtragem", { iniciar() {
+    Filtro.criar({ serie: porId("filtro-serie"), espectro: porId("filtro-espectro"), controles: porId("filtro-controles") });
+  } });
+  let vortice = null;
+  Deck.registrar("motivacao", {
+    iniciar() { vortice = Vortice.criar({ alvo: porId("vortice-mapa"), controles: porId("vortice-controles") }); },
+    sair() { vortice.pausar(); },
+  });
+  Deck.registrar("referencial", { iniciar() {
+    Features.referencial({ mapa: porId("referencial-mapa"), controles: porId("referencial-controles") });
+  } });
+  Deck.registrar("pontuais", { iniciar() { Esquemas.direcao(porId("pontuais-diagrama")); } });
+  Deck.registrar("vizinhanca", { iniciar() { Esquemas.padroes(porId("vizinhanca-esquema")); } });
+  Deck.registrar("coerencia", { iniciar() { Esquemas.coerencia(porId("coerencia-esquema")); } });
+  Deck.registrar("geostroficas", { iniciar() {
+    Features.criar({ mapa: porId("geostroficas-mapa"), controles: porId("geostroficas-controles"),
+      chaves: ["zeta", "zeta_g", "W", "W_g", "speed", "Vg"], colunaInicial: "zeta_g", L: 930, H: 600 });
+  } });
+  Deck.registrar("escala", { iniciar() {
+    Features.histograma({ alvo: porId("escala-histograma"), controles: porId("escala-controles"), curtose: porId("escala-curtose") });
+  } });
+  Deck.registrar("matriz", { iniciar() { Features.tabela(porId("matriz-tabela")); } });
+  Deck.registrar("features-mapa", { iniciar() {
+    Features.criar({ mapa: porId("features-mapa-grafico"), controles: porId("features-controles"),
+      linhas: porId("features-linhas"), cabecalho: porId("features-cabecalho") });
+  } });
+  Deck.registrar("gmm-geracao", { iniciar() { DemoGMM.geracao({ alvo: porId("gmm-geracao-grafico"), controles: porId("gmm-geracao-controles") }); } });
+  Deck.registrar("gmm-resp", { iniciar() { DemoGMM.responsabilidade(porId("grafico-mistura")); } });
+  let em = null;
+  Deck.registrar("gmm-em", {
+    iniciar() { em = DemoGMM.estimacao({ alvo: porId("gmm-em-grafico"), curva: porId("gmm-em-curva"), controles: porId("gmm-em-controles") }); },
+    sair() { em.pausar(); },
+  });
+  let bw = null;
+  Deck.registrar("hmm-modelo", { iniciar() { DemoHMM.grafo(porId("hmm-grafo")); DemoHMM.modelo({ serie: porId("hmm-modelo-serie"), controles: porId("hmm-modelo-controles") }); } });
+  Deck.registrar("hmm-param", { iniciar() { DemoHMM.parametros(porId("hmm-param-grafico")); } });
+  let vit = null;
+  Deck.registrar("hmm-viterbi", {
+    iniciar() { vit = DemoHMM.viterbiAnimado({ alvo: porId("hmm-viterbi-grafico"), controles: porId("hmm-viterbi-controles") }); },
+    sair() { vit.pausar(); },
+  });
+  Deck.registrar("hmm-estados", { iniciar() {
+    DemoHMM.gmmSemTempo(porId("hmm-gmm-grafico"));
+    DemoHMM.decodificacao({ alvo: porId("hmm-estados-grafico"), controles: porId("hmm-estados-controles") });
+  } });
+  Deck.registrar("hmm-contagem", { iniciar() { DemoHMM.contagem({ alvo: porId("hmm-contagem-grafico"), curvas: porId("hmm-contagem-emissoes"), controles: porId("hmm-contagem-controles") }); } });
+  let fb = null;
+  Deck.registrar("hmm-fb", {
+    iniciar() { fb = DemoHMM.fbAnimado({ alvo: porId("hmm-fb-grafico"), controles: porId("hmm-fb-controles") }); },
+    sair() { fb.pausar(); },
+  });
+  Deck.registrar("hmm-bw", {
+    iniciar() { bw = DemoHMM.baumWelch({ alvo: porId("hmm-bw-topo"), curva: porId("hmm-bw-curva"), controles: porId("hmm-bw-controles") }); },
+    sair() { bw.pausar(); },
+  });
+  Deck.registrar("fw-maquinas", { iniciar() { DemoHMM.maquinas({ alvo: porId("fw-maquinas-grafico"), controles: porId("fw-maquinas-controles") }); } });
+  Deck.registrar("fw-etapas", { iniciar() {
+    Framework.esquema(porId("fw-esquema-gmm"), "gmm");
+    Framework.esquema(porId("fw-esquema-bw"), "bw");
+    Framework.esquema(porId("fw-esquema-viterbi"), "viterbi");
+  } });
+  Deck.registrar("fw-celula", { iniciar() {
+    Framework.celula({ mapa: porId("fw-mapa"), serie: porId("fw-serie"), leitura: porId("fw-leitura") });
+  } });
+  Deck.registrar("nome-estados", { iniciar() {
+    Nomeacao.criar({ tabela: porId("nome-tabela"), caminho: porId("nome-caminho"), controles: porId("nome-controles") });
+  } });
+  Deck.registrar("pca-metodo", { iniciar() { PCA.cargas(porId("pca-cargas")); } });
+  Deck.registrar("pca-gaussianas", { iniciar() {
+    PCA.criar({ alvo: porId("pca-grafico"), estados: porId("pca-estados") });
+  } });
+  Deck.registrar("extensao", { iniciar() {
+    Mapas.criar(porId("extensao-mapa"), { L: 970, H: 660, inicial: "extraida", caixas: CAIXAS });
+  } });
+  Deck.registrar("regimes-mapas", { iniciar() {
+    Regimes.mapas({ alvos: [0, 1, 2].map(n => porId(`regimes-mapa-${n}`)), barra: porId("regimes-barra") });
+  } });
+  Deck.registrar("regimes-A", { iniciar() { Regimes.matriz(porId("regimes-tabela")); } });
+  Deck.iniciar();
+});
+</script>
+</body>
+</html>
